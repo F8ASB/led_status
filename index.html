@@ -3,87 +3,190 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Commandes série</title>
+  <title>Commandes série — Simple</title>
   <style>
-    body{font-family:system-ui;margin:0;padding:2rem;background:#f4f6fb;color:#0f172a}
-    h1{margin-top:0}
-    .card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 4px 18px rgba(0,0,0,0.08);margin-bottom:2rem}
-    table{width:100%;border-collapse:collapse;margin-top:1rem}
-    th,td{padding:.55rem;border-bottom:1px solid #e2e8f0;text-align:left}
-    th{background:#f1f5f9}
-    button{padding:.45rem .8rem;border-radius:8px;border:0;background:#2563eb;color:#fff;cursor:pointer}
-    .controls{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
-    select{padding:.45rem .7rem;border-radius:8px;border:1px solid #cbd5e1}
-    #log{white-space:pre-line;background:#f8fafc;border-radius:8px;padding:1rem;margin-top:1rem;border:1px dashed #cbd5e1;height:140px;overflow-y:auto}
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f4f6fb;margin:0;padding:2rem;color:#0f172a}
+    .container{max-width:980px;margin:0 auto}
+    .card{background:#fff;border-radius:12px;padding:1.25rem;box-shadow:0 6px 20px rgba(2,6,23,0.06);margin-bottom:1rem}
+    h1{margin:0 0 .5rem 0}
+    .controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+    select,input{padding:.5rem .6rem;border-radius:8px;border:1px solid #e2e8f0}
+    button{padding:.5rem .8rem;border-radius:8px;border:0;background:#2563eb;color:#fff;cursor:pointer}
+    button.secondary{background:#6b7280}
+    .btn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;margin-top:.75rem}
+    #log{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:1rem;margin-top:1rem;border:1px dashed #cbd5e1;height:160px;overflow:auto}
+    label{font-size:.95rem}
+    .row{display:flex;gap:.6rem;align-items:center}
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>Panneau de commandes série — Simple</h1>
 
-  <h1>Panneau de commandes série</h1>
+    <div class="card">
+      <h2>Configuration du port série</h2>
+      <div class="controls">
+        <label>Port COM :
+          <select id="portSelect">
+            <option value="">-- Aucun --</option>
+          </select>
+        </label>
 
-  <div class="card">
-    <h2>Gestion des défauts</h2>
-    <div class="controls" style="flex-direction:column;align-items:flex-start;">
-      <button onclick="sendCmd('ERR_NET')">Perte Internet — ERR_NET</button>
-      <button onclick="sendCmd('ERR_CAM')">Caméra déconnectée — ERR_CAM</button>
-      <button onclick="sendCmd('ERR_DISK')">Problème disque — ERR_DISK</button>
-      <button onclick="sendCmd('ERR_VMS')">Serveur crashé — ERR_VMS</button>
+        <label>Vitesse (baud) :
+          <select id="baudSelect">
+            <option>9600</option>
+            <option>19200</option>
+            <option>38400</option>
+            <option>57600</option>
+            <option selected>115200</option>
+          </select>
+        </label>
+
+        <div class="row">
+          <button id="requestBtn">Choisir un port...</button>
+          <button id="connectBtn" class="secondary">Connecter</button>
+          <button id="closeBtn" class="secondary">Fermer</button>
+        </div>
+      </div>
+      <p style="margin-top:.6rem;color:#475569;font-size:.95rem">Note : le navigateur doit supporter l'API Web Serial (Chrome / Edge). Le bouton « Choisir un port... » ouvre la boîte de dialogue pour sélectionner un périphérique.</p>
+    </div>
+
+    <div class="card">
+      <h2>Commandes (un bouton par commande)</h2>
+      <div class="btn-grid">
+        <button onclick="sendCmd('SYS_IDLE')">Blanc respiration — SYS_IDLE</button>
+        <button onclick="sendCmd('SYS_STARTING')">Blanc clignotement 1 Hz — SYS_STARTING</button>
+        <button onclick="sendCmd('SYS_OK')">Orange fixe — SYS_OK</button>
+
+        <button onclick="sendCmd('ERR_NET')">Perte Internet — ERR_NET</button>
+        <button onclick="sendCmd('ERR_CAM')">Caméra déconnectée — ERR_CAM</button>
+        <button onclick="sendCmd('ERR_DISK')">Problème disque — ERR_DISK</button>
+        <button onclick="sendCmd('ERR_VMS')">Serveur crashé — ERR_VMS</button>
+
+        <button onclick="sendCmd('?')">Version (?) — ?</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Journal</h2>
+      <div id="log">Prêt.</div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Journal</h2>
-    <div id="log">En attente...</div>
-  </div>
-
 <script>
+  // Gestion du port série via Web Serial API
   let port = null;
   let writer = null;
 
-  const log = (msg)=>{
-    const box = document.getElementById('log');
-    box.textContent += "\n" + msg;
-    box.scrollTop = box.scrollHeight;
-  };
-
-  async function listPorts(){
-    const ports = await navigator.serial.getPorts();
-    const select = document.getElementById('portSelect');
-    ports.forEach((p,i)=>{
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = "Port " + (i+1);
-      opt._port = p;
-      select.appendChild(opt);
-    });
+  const logBox = document.getElementById('log');
+  function log(msg){
+    const t = new Date().toLocaleTimeString();
+    logBox.textContent = t + '  ' + msg + '
+' + logBox.textContent;
   }
 
-  async function connect(){
+  // Remplit la liste des ports disponibles
+  async function refreshPorts(){
     try{
-      if(!port){
-        await navigator.serial.requestPort();
-        const ports = await navigator.serial.getPorts();
-        port = ports[ports.length-1];
-      }
-      await port.open({ baudRate: parseInt(document.getElementById('baudSelect').value) });
-      writer = port.writable.getWriter();
-      log("Connecté au port série.");
+      const ports = await navigator.serial.getPorts();
+      const sel = document.getElementById('portSelect');
+      // nettoie
+      sel.innerHTML = '<option value="">-- Aucun --</option>';
+      ports.forEach((p,idx)=>{
+        const opt = document.createElement('option');
+        // info utile si disponible
+        const info = p.getInfo ? p.getInfo() : {};
+        opt.value = idx;
+        opt.textContent = info.usbProductId ? `Port ${idx+1} (USB PID:${info.usbProductId})` : `Port ${idx+1}`;
+        opt._port = p;
+        sel.appendChild(opt);
+      });
     }catch(e){
-      log("ERREUR connexion : " + e);
+      log('Erreur listage ports: ' + e);
     }
   }
 
-  async function sendCmd(cmd){
-    if(!writer){ log("Non connecté."); return; }
+  // Ouvre la boîte de sélection et ajoute le port
+  document.getElementById('requestBtn').addEventListener('click', async ()=>{
     try{
-      await writer.write(new TextEncoder().encode(cmd + "\n"));
-      log("→ " + cmd);
-    }catch(e){ log("ERREUR envoi : " + e); }
+      const p = await navigator.serial.requestPort();
+      log('Port choisi.');
+      await refreshPorts();
+      // sélectionne automatiquement le dernier
+      const sel = document.getElementById('portSelect');
+      sel.selectedIndex = sel.options.length-1;
+    }catch(e){
+      log('Sélection annulée.');
+    }
+  });
+
+  // Connecte au port sélectionné
+  document.getElementById('connectBtn').addEventListener('click', async ()=>{
+    try{
+      const sel = document.getElementById('portSelect');
+      const idx = sel.selectedIndex;
+      if(idx <= 0){ log('Aucun port sélectionné.'); return; }
+      const opt = sel.options[idx];
+      const p = opt._port;
+      const baud = parseInt(document.getElementById('baudSelect').value);
+      await p.open({ baudRate: baud });
+      port = p;
+      writer = port.writable.getWriter();
+      log('Connecté (baud ' + baud + ').');
+      // démarre la lecture asynchrone si besoin
+      readLoop(port);
+    }catch(e){
+      log('Erreur connexion: ' + e);
+    }
+  });
+
+  document.getElementById('closeBtn').addEventListener('click', async ()=>{
+    try{
+      if(writer){ await writer.close(); writer = null; }
+      if(port){ await port.close(); port = null; }
+      log('Port fermé.');
+    }catch(e){ log('Erreur fermeture: ' + e); }
+  });
+
+  // Envoie une commande (ligne terminée par 
+)
+  async function sendCmd(cmd){
+    if(!writer){ log('Non connecté — impossible d\'envoyer: ' + cmd); return; }
+    try{
+      await writer.write(new TextEncoder().encode(cmd + '
+'));
+      log('→ ' + cmd);
+    }catch(e){ log('Erreur envoi: ' + e); }
   }
 
-  document.getElementById('connectBtn').addEventListener('click', connect);
-  listPorts();
-</script>
+  // Lecture simple des données entrantes (affiche dans le log)
+  async function readLoop(p){
+    try{
+      while(p.readable){
+        const reader = p.readable.getReader();
+        try{
+          while(true){
+            const { value, done } = await reader.read();
+            if(done) break;
+            if(value){
+              const text = new TextDecoder().decode(value);
+              log('← ' + text.trim());
+            }
+          }
+        }finally{ reader.releaseLock(); }
+        // sortie de la boucle si non lisible
+        break;
+      }
+    }catch(e){ log('Erreur lecture: ' + e); }
+  }
 
+  // initialisation
+  if('serial' in navigator){
+    refreshPorts();
+    log('API Web Serial détectée.');
+  }else{
+    log('Web Serial API NON disponible dans ce navigateur.');
+  }
+</script>
 </body>
 </html>
