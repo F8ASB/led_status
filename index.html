@@ -1,192 +1,137 @@
-<!doctype html> 
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Commandes série — Simple</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f4f6fb;margin:0;padding:2rem;color:#0f172a}
-    .container{max-width:980px;margin:0 auto}
-    .card{background:#fff;border-radius:12px;padding:1.25rem;box-shadow:0 6px 20px rgba(2,6,23,0.06);margin-bottom:1rem}
-    h1{margin:0 0 .5rem 0}
-    .controls{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
-    select,input{padding:.5rem .6rem;border-radius:8px;border:1px solid #e2e8f0}
-    button{padding:.5rem .8rem;border-radius:8px;border:0;background:#2563eb;color:#fff;cursor:pointer}
-    button.secondary{background:#6b7280}
-    .btn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;margin-top:.75rem}
-    #log{white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:1rem;margin-top:1rem;border:1px dashed #cbd5e1;height:160px;overflow:auto}
-    label{font-size:.95rem}
-    .row{display:flex;gap:.6rem;align-items:center}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Panneau de commandes série — Simple</h1>
-
-    <div class="card">
-      <h2>Configuration du port série</h2>
-      <div class="controls">
-        <label>Port COM :
-          <select id="portSelect">
-            <option value="">-- Aucun --</option>
-          </select>
-        </label>
-
-        <label>Vitesse (baud) :
-          <select id="baudSelect">
-            <option>9600</option>
-            <option>19200</option>
-            <option>38400</option>
-            <option>57600</option>
-            <option selected>115200</option>
-          </select>
-        </label>
-
-        <div class="row">
-          <button id="requestBtn">Choisir un port...</button>
-          <button id="connectBtn" class="secondary">Connecter</button>
-          <button id="closeBtn" class="secondary">Fermer</button>
-        </div>
-      </div>
-      <p style="margin-top:.6rem;color:#475569;font-size:.95rem">Note : le navigateur doit supporter l'API Web Serial (Chrome / Edge). Le bouton « Choisir un port... » ouvre la boîte de dialogue pour sélectionner un périphérique.</p>
-    </div>
-
-    <div class="card">
-      <h2>Commandes (un bouton par commande)</h2>
-      <div class="btn-grid">
-        <button onclick="sendCmd('SYS_IDLE')">Blanc respiration — SYS_IDLE</button>
-        <button onclick="sendCmd('SYS_STARTING')">Blanc clignotement 1 Hz — SYS_STARTING</button>
-        <button onclick="sendCmd('SYS_OK')">Orange fixe — SYS_OK</button>
-
-        <button onclick="sendCmd('ERR_NET')">Perte Internet — ERR_NET</button>
-        <button onclick="sendCmd('ERR_CAM')">Caméra déconnectée — ERR_CAM</button>
-        <button onclick="sendCmd('ERR_DISK')">Problème disque — ERR_DISK</button>
-        <button onclick="sendCmd('ERR_VMS')">Serveur crashé — ERR_VMS</button>
-
-        <button onclick="sendCmd('?')">Version (?) — ?</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Journal</h2>
-      <div id="log">Prêt.</div>
-    </div>
-  </div>
-
 <script>
-  // Gestion du port série via Web Serial API
-  let port = null;
-  let writer = null;
+/* Remplace l'ancien script par celui-ci */
+let port = null;
+let writer = null;
 
-  const logBox = document.getElementById('log');
-  function log(msg){
-    const t = new Date().toLocaleTimeString();
-    logBox.textContent = t + '  ' + msg + '
-' + logBox.textContent;
+const logBox = document.getElementById('log');
+function log(msg){
+  const t = new Date().toLocaleTimeString();
+  logBox.textContent = `${t}  ${msg}\n` + logBox.textContent;
+  console.log(msg);
+}
+
+// Vérifie la disponibilité de l'API
+if(!('serial' in navigator)){
+  log('Web Serial API NON disponible dans ce navigateur (ou contexte non sécurisé).');
+}
+
+// Rafraîchit la liste des ports accessibles
+async function refreshPorts(){
+  try{
+    const sel = document.getElementById('portSelect');
+    sel.innerHTML = '<option value="">-- Aucun --</option>';
+    const ports = await navigator.serial.getPorts();
+    ports.forEach((p, idx) => {
+      const opt = document.createElement('option');
+      let info = {};
+      try { info = p.getInfo ? p.getInfo() : {}; } catch(e){}
+      const labelParts = [];
+      if(info.usbVendorId) labelParts.push('VID:'+info.usbVendorId.toString(16));
+      if(info.usbProductId) labelParts.push('PID:'+info.usbProductId.toString(16));
+      opt.value = idx;
+      opt.textContent = labelParts.length ? `Port ${idx+1} (${labelParts.join(' ')})` : `Port ${idx+1}`;
+      opt._port = p;
+      sel.appendChild(opt);
+    });
+    log(`Liste des ports mise à jour (${ports.length} trouvés).`);
+  }catch(e){
+    log('Erreur refreshPorts: ' + e);
   }
+}
 
-  // Remplit la liste des ports disponibles
-  async function refreshPorts(){
-    try{
-      const ports = await navigator.serial.getPorts();
-      const sel = document.getElementById('portSelect');
-      // nettoie
-      sel.innerHTML = '<option value="">-- Aucun --</option>';
-      ports.forEach((p,idx)=>{
-        const opt = document.createElement('option');
-        // info utile si disponible
-        const info = p.getInfo ? p.getInfo() : {};
-        opt.value = idx;
-        opt.textContent = info.usbProductId ? `Port ${idx+1} (USB PID:${info.usbProductId})` : `Port ${idx+1}`;
-        opt._port = p;
-        sel.appendChild(opt);
-      });
-    }catch(e){
-      log('Erreur listage ports: ' + e);
+// Bouton : demande à l'utilisateur de choisir un port.
+// IMPORTANT : requestPort doit être appelé depuis un événement utilisateur (clic).
+document.getElementById('requestBtn').addEventListener('click', async () => {
+  try{
+    if(!('serial' in navigator)){
+      log('Impossible : Web Serial API non disponible.');
+      return;
+    }
+    // L'appel requestPort ouvre la boîte de dialogue de sélection
+    const chosenPort = await navigator.serial.requestPort();
+    log('Port sélectionné (dialogue ok).');
+    await refreshPorts();
+    // sélection automatique du dernier port ajouté
+    const sel = document.getElementById('portSelect');
+    sel.selectedIndex = sel.options.length - 1;
+  }catch(e){
+    // L'utilisateur peut annuler — on l'indique proprement
+    if(e.name === 'NotFoundError' || e.name === 'DOMException'){
+      log('Sélection annulée ou aucun périphérique choisi.');
+    } else {
+      log('Erreur requestPort: ' + e);
     }
   }
+});
 
-  // Ouvre la boîte de sélection et ajoute le port
-  document.getElementById('requestBtn').addEventListener('click', async ()=>{
-    try{
-      const p = await navigator.serial.requestPort();
-      log('Port choisi.');
-      await refreshPorts();
-      // sélectionne automatiquement le dernier
-      const sel = document.getElementById('portSelect');
-      sel.selectedIndex = sel.options.length-1;
-    }catch(e){
-      log('Sélection annulée.');
+// Connecter au port sélectionné
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  try{
+    const sel = document.getElementById('portSelect');
+    if(sel.selectedIndex <= 0){
+      log('Aucun port sélectionné.');
+      return;
     }
-  });
-
-  // Connecte au port sélectionné
-  document.getElementById('connectBtn').addEventListener('click', async ()=>{
-    try{
-      const sel = document.getElementById('portSelect');
-      const idx = sel.selectedIndex;
-      if(idx <= 0){ log('Aucun port sélectionné.'); return; }
-      const opt = sel.options[idx];
-      const p = opt._port;
-      const baud = parseInt(document.getElementById('baudSelect').value);
-      await p.open({ baudRate: baud });
-      port = p;
-      writer = port.writable.getWriter();
-      log('Connecté (baud ' + baud + ').');
-      // démarre la lecture asynchrone si besoin
-      readLoop(port);
-    }catch(e){
-      log('Erreur connexion: ' + e);
-    }
-  });
-
-  document.getElementById('closeBtn').addEventListener('click', async ()=>{
-    try{
-      if(writer){ await writer.close(); writer = null; }
-      if(port){ await port.close(); port = null; }
-      log('Port fermé.');
-    }catch(e){ log('Erreur fermeture: ' + e); }
-  });
-
-  // Envoie une commande (ligne terminée par 
-)
-  async function sendCmd(cmd){
-    if(!writer){ log('Non connecté — impossible d\'envoyer: ' + cmd); return; }
-    try{
-      await writer.write(new TextEncoder().encode(cmd + '
-'));
-      log('→ ' + cmd);
-    }catch(e){ log('Erreur envoi: ' + e); }
+    const opt = sel.options[sel.selectedIndex];
+    const p = opt._port;
+    const baud = parseInt(document.getElementById('baudSelect').value, 10);
+    await p.open({ baudRate: baud });
+    port = p;
+    writer = port.writable.getWriter();
+    log(`Connecté au port (baud ${baud}).`);
+    readLoop(port);
+  }catch(e){
+    log('Erreur connexion: ' + e);
   }
+});
 
-  // Lecture simple des données entrantes (affiche dans le log)
-  async function readLoop(p){
-    try{
-      while(p.readable){
-        const reader = p.readable.getReader();
-        try{
-          while(true){
-            const { value, done } = await reader.read();
-            if(done) break;
-            if(value){
-              const text = new TextDecoder().decode(value);
-              log('← ' + text.trim());
-            }
+document.getElementById('closeBtn').addEventListener('click', async () => {
+  try{
+    if(writer){ await writer.close(); writer = null; }
+    if(port){ await port.close(); port = null; }
+    log('Port fermé.');
+  }catch(e){ log('Erreur fermeture: ' + e); }
+});
+
+async function sendCmd(cmd){
+  if(!writer){ log(`Non connecté — impossible d'envoyer: ${cmd}`); return; }
+  try{
+    await writer.write(new TextEncoder().encode(cmd + '\n'));
+    log('→ ' + cmd);
+  }catch(e){ log('Erreur envoi: ' + e); }
+}
+
+// Lecture simple (affiche toute donnée reçue)
+async function readLoop(p){
+  try{
+    while(p.readable){
+      const reader = p.readable.getReader();
+      try{
+        while(true){
+          const { value, done } = await reader.read();
+          if(done) break;
+          if(value){
+            const text = new TextDecoder().decode(value);
+            log('← ' + text.trim());
           }
-        }finally{ reader.releaseLock(); }
-        // sortie de la boucle si non lisible
-        break;
+        }
+      } finally {
+        reader.releaseLock();
       }
-    }catch(e){ log('Erreur lecture: ' + e); }
+      break; // on sort pour éviter double boucle (gestion simple)
+    }
+  }catch(e){
+    log('Erreur lecture: ' + e);
   }
+}
 
-  // initialisation
+// Initialisation : tente de lister les ports déjà autorisés
+window.addEventListener('load', () => {
   if('serial' in navigator){
     refreshPorts();
-    log('API Web Serial détectée.');
-  }else{
-    log('Web Serial API NON disponible dans ce navigateur.');
+    log('API Web Serial détectée. Cliquez sur "Choisir un port..." pour sélectionner un périphérique.');
+  } else {
+    log('Web Serial API non détectée.');
   }
+});
 </script>
-</body>
-</html>
