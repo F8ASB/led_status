@@ -1,1 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Page de test — HTML</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;}
+    body{margin:0;padding:2rem;background:#f6f8fb;color:#0f172a}
+    .container{max-width:900px;margin:0 auto;background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 6px 24px rgba(15,23,42,0.06)}
+    header{display:flex;align-items:center;gap:1rem}
+    h1{margin:0;font-size:1.25rem}
+    p.lead{color:#475569;margin-top:0.25rem}
+    .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem}
+    input[type="text"]{padding:.5rem .75rem;border:1px solid #e6edf3;border-radius:8px;min-width:220px}
+    button{padding:.55rem .9rem;border:0;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer}
+    button.secondary{background:#6b7280}
+    .preview{margin-top:1rem;padding:1rem;border-radius:8px;border:1px dashed #e2e8f0;background:#fbfdff}
+    footer{margin-top:1.25rem;color:#94a3b8;font-size:.9rem}
+    .kbd{font-family:monospace;background:#eef2ff;padding:.08rem .35rem;border-radius:6px}
+    @media (max-width:520px){.controls{flex-direction:column}input[type="text"]{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <rect width="24" height="24" rx="6" fill="#e0f2fe"></rect>
+        <path d="M7 13c1.5-2 4-3 6-3s4.5 1 6 3" stroke="#0284c7" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <h1>Page HTML de test</h1>
+        <p class="lead">Un petit fichier pour tester HTML, CSS et JavaScript localement.</p>
+      </div>
+    </header>
+
+    <div class="controls">
+      <input id="textInput" type="text" placeholder="Tapez quelque chose..." value="Bonjour, monde !" />
+      <button id="showBtn">Afficher une alerte</button>
+      <button id="updateBtn" class="secondary">Mettre à jour l'aperçu</button>
+      <button id="copyBtn" class="secondary">Copier le texte</button>
+    </div>
+
+    <div class="preview" id="preview" aria-live="polite">
+      <!-- Aperçu mis à jour par JavaScript -->
+      Bonjour, monde !
+    </div>
+
+    <footer>
+      Astuce : ouvrez la console du navigateur (<span class="kbd">F12</span> ou <span class="kbd">Ctrl/Cmd+Shift+I</span>) pour voir les logs.
+    </footer>
+  </div>
+
+  <script>
+    const input = document.getElementById('textInput');
+    const preview = document.getElementById('preview');
+    const showBtn = document.getElementById('showBtn');
+    const updateBtn = document.getElementById('updateBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    // Met à jour l'aperçu en échappant le HTML
+    function escapeHtml(str){
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function updatePreview(){
+      const value = input.value || '';
+      preview.innerHTML = escapeHtml(value);
+      console.log('Aperçu mis à jour:', value);
+    }
+
+    // événements
+    updateBtn.addEventListener('click', updatePreview);
+    showBtn.addEventListener('click', ()=>{
+      alert(input.value || 'Rien à afficher');
+      console.log('Alerte affichée');
+    });
+
+    copyBtn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(input.value || '');
+        copyBtn.textContent = 'Copié ✅';
+        setTimeout(()=> copyBtn.textContent = 'Copier le texte', 1200);
+      }catch(e){
+        console.warn('Impossible de copier:', e);
+        copyBtn.textContent = 'Échec';
+        setTimeout(()=> copyBtn.textContent = 'Copier le texte', 1200);
+      }
+    });
+
+    // Mise à jour initiale
+    updatePreview();
+
+    // Exemple d'écoute au clavier : Enter met à jour l'aperçu
+    input.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') updatePreview();
+    });
+  </script>
+</body>
+</html>
 
