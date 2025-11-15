@@ -1,86 +1,55 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Flash LedStatus via WebSerial (ESP32)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }
-    h1 { text-align: center; }
-    .card { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
-    button { padding: 10px 15px; margin-top: 10px; }
-    input { margin-top: 10px; }
-    #log { white-space: pre-wrap; background: #f5f5f5; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; }
-  </style>
+  <meta charset="UTF-8">
+  <title>ESP32-C3 Web Flasher</title>
 </head>
 <body>
-  <h1>Flasher LedStatus (ESP32 via WebSerial)</h1>
-  <div class="card">
-    <p>
-      Cette page utilise l'API Web Serial (Chrome / Edge) et <b>esptool.js</b> pour flasher un ESP32.
-    </p>
+  <h1>Flasher ESP32-C3 depuis le navigateur</h1>
+  
+  <input type="file" id="firmware" />
+  <button id="connect">Connecter et flasher</button>
+  
+  <pre id="log"></pre>
 
-    <button id="btnConnect">Connecter ESP32</button><br />
-
-    <label>Choisir un fichier .bin :</label><br />
-    <input type="file" id="binFile" accept=".bin" /><br />
-
-    <button id="btnFlash">Flasher</button>
-
-    <h3>Logs :</h3>
-    <div id="log"></div>
-  </div>
-
-  <!-- Import esptool-js -->
-  <script src="https://unpkg.com/esptool-js@latest/dist/web/index.js"></script>
-
+  <!-- Import esptool-js depuis un CDN -->
+  <script src="https://unpkg.com/esptool-js@latest/dist/web/index.min.js"></script>
   <script>
-    let espTool = null;
+    const log = document.getElementById("log");
 
-    const log = (msg) => {
-      const logDiv = document.getElementById("log");
-      logDiv.textContent += msg + "\n";
-      logDiv.scrollTop = logDiv.scrollHeight;
-    };
-
-    document.getElementById("btnConnect").onclick = async () => {
+    async function flash() {
       try {
+        // Demande au navigateur d’ouvrir le port série
         const port = await navigator.serial.requestPort();
         await port.open({ baudRate: 115200 });
-        espTool = new EspLoader(port, { baudrate: 115200 });
-        await espTool.initialize();
-        log("ESP32 connecté en mode bootloader ✓");
-      } catch (e) {
-        log("Erreur connexion: " + e);
+
+        const esploader = new EspLoader(port, { log: (msg) => log.textContent += msg + "\n" });
+        await esploader.initialize();
+
+        log.textContent += "Connexion OK\n";
+
+        // Récupère le fichier choisi
+        const fileInput = document.getElementById("firmware");
+        const file = fileInput.files[0];
+        if (!file) {
+          log.textContent += "⚠️ Aucun fichier sélectionné\n";
+          return;
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+
+        // Flash à l’adresse 0x0 (merged.bin)
+        await esploader.writeFlash([[0x0, data]]);
+        log.textContent += "✅ Flash terminé !\n";
+
+        await port.close();
+      } catch (err) {
+        log.textContent += "Erreur: " + err + "\n";
       }
-    };
+    }
 
-    document.getElementById("btnFlash").onclick = async () => {
-      if (!espTool) {
-        log("Veuillez d'abord connecter l'ESP32.");
-        return;
-      }
-
-      const fileInput = document.getElementById("binFile");
-      if (!fileInput.files.length) {
-        log("Veuillez sélectionner un fichier .bin.");
-        return;
-      }
-
-      const file = fileInput.files[0];
-      const arrayBuffer = await file.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
-
-      log("Flash du fichier " + file.name + " en cours...");
-
-      try {
-        // Adresse typique pour le firmware ESP32
-        await espTool.flashData(data, 0x10000);
-        log("Flash terminé ✓");
-      } catch (e) {
-        log("Erreur lors du flash: " + e);
-      }
-    };
+    document.getElementById("connect").addEventListener("click", flash);
   </script>
 </body>
 </html>
