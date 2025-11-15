@@ -14,7 +14,6 @@
       margin-bottom: 25px;
     }
 
-    /* Cartes modernes */
     .card {
       background: white;
       padding: 20px;
@@ -69,13 +68,7 @@
 <!-- Bouton connexion principal -->
 <div style="text-align:center; margin-bottom:20px;">
   <button id="connectBtn" style="padding:14px 22px; font-size:18px; border-radius:12px; background:#4caf50; color:white;">🔌 Connexion au port COM</button>
-</div>
-
-<!-- Bloc Port COM -->
-<div class="card">
-  <h2>Connexion</h2>
-  <button id="connectBtn">🔌 Choisir un port COM</button>
-  <button id="versionBtn">ℹ️ Version (?)</button>
+  <button id="versionBtn" style="padding:14px 22px; font-size:18px; border-radius:12px; background:#2196f3; color:white; margin-left:10px;">ℹ️ Version (?)</button>
 </div>
 
 <!-- États système -->
@@ -149,6 +142,7 @@
     }
   }
 
+  // Connexion et ouverture du port directement depuis le bouton principal
   document.getElementById('connectBtn').addEventListener('click', async () => {
     try {
       port = await navigator.serial.requestPort();
@@ -161,6 +155,7 @@
     }
   });
 
+  // Bouton version
   document.getElementById('versionBtn').addEventListener('click', () => {
     sendCommand('?');
   });
