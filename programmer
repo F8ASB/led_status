@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flash ESP32 via WebSerial</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: auto; padding: 20px; }
+    h1 { text-align: center; }
+    .card { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
+    button { padding: 10px 15px; margin-top: 10px; }
+    input { margin-top: 10px; }
+    #log { white-space: pre-wrap; background: #f5f5f5; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1>Flasher un ESP32 (WebSerial)</h1>
+  <div class="card">
+    <p>
+      Cette page utilise l'API Web Serial (Chrome / Edge). Elle permet de choisir un port COM
+      et d'envoyer un fichier .bin à un ESP32.
+    </p>
+
+    <button id="btnPort">Choisir un port COM</button><br />
+
+    <label>Choisir un fichier .bin :</label><br />
+    <input type="file" id="binFile" accept=".bin" /><br />
+
+    <button id="btnFlash">Flasher</button>
+
+    <h3>Logs :</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let port = null;
+    let writer = null;
+
+    const log = (msg) => {
+      const logDiv = document.getElementById("log");
+      logDiv.textContent += msg + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    };
+
+    document.getElementById("btnPort").onclick = async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        log("Port COM ouvert ✓");
+      } catch (e) {
+        log("Erreur port COM: " + e);
+      }
+    };
+
+    document.getElementById("btnFlash").onclick = async () => {
+      if (!port) {
+        log("Veuillez sélectionner un port COM.");
+        return;
+      }
+
+      const fileInput = document.getElementById("binFile");
+      if (!fileInput.files.length) {
+        log("Veuillez sélectionner un fichier .bin.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
+
+      log("Envoi du fichier " + file.name + "...");
+
+      try {
+        for (let i = 0; i < data.length; i += 256) {
+          const chunk = data.slice(i, i + 256);
+          await writer.write(chunk);
+        }
+        log("Flash terminé ✓");
+      } catch (e) {
+        log("Erreur lors du flash: " + e);
+      }
+    };
+  </script>
+</body>
+</html>
