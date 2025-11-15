@@ -1,137 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrôle Système — Commandes Série</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    /* Cartes modernes */
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 15px;
+    }
+
+    button {
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.2s;
+      background: #e3e7ee;
+    }
+    button:hover {
+      background: #cfd6e4;
+    }
+
+    .cmd-btn {
+      font-weight: bold;
+    }
+
+    #log {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Contrôle des États & Défauts — Système Série</h1>
+
+<!-- Bloc Port COM -->
+<div class="card">
+  <h2>Connexion</h2>
+  <button id="connectBtn">🔌 Choisir un port COM</button>
+  <button id="versionBtn">ℹ️ Version (?)</button>
+</div>
+
+<!-- États système -->
+<div class="card">
+  <h2>États du système</h2>
+  <div class="button-grid">
+    <button class="cmd-btn" onclick="sendCommand('SYS_IDLE')">⚪ Blanc respiration<br>SYS_IDLE</button>
+    <button class="cmd-btn" onclick="sendCommand('SYS_STARTING')">⚪ Blanc clignotement 1 Hz<br>SYS_STARTING</button>
+    <button class="cmd-btn" onclick="sendCommand('SYS_OK')">🟠 Orange fixe<br>SYS_OK</button>
+  </div>
+</div>
+
+<!-- Défauts système -->
+<div class="card">
+  <h2>Gestion des défauts</h2>
+  <div class="button-grid">
+    <button class="cmd-btn" onclick="sendCommand('ERR_NET')">🟡 Perte Internet<br>ERR_NET</button>
+    <button class="cmd-btn" onclick="sendCommand('ERR_CAM')">🟡 Caméra déconnectée<br>ERR_CAM</button>
+    <button class="cmd-btn" onclick="sendCommand('ERR_DISK')">🟡 Problème disque<br>ERR_DISK</button>
+    <button class="cmd-btn" onclick="sendCommand('ERR_VMS')">🟡 Serveur crashé<br>ERR_VMS</button>
+  </div>
+</div>
+
+<!-- Journal -->
+<div class="card">
+  <h2>Journal</h2>
+  <div id="log"></div>
+</div>
+
 <script>
-/* Remplace l'ancien script par celui-ci */
-let port = null;
-let writer = null;
+  let port;
+  let writer;
+  let reader;
 
-const logBox = document.getElementById('log');
-function log(msg){
-  const t = new Date().toLocaleTimeString();
-  logBox.textContent = `${t}  ${msg}\n` + logBox.textContent;
-  console.log(msg);
-}
-
-// Vérifie la disponibilité de l'API
-if(!('serial' in navigator)){
-  log('Web Serial API NON disponible dans ce navigateur (ou contexte non sécurisé).');
-}
-
-// Rafraîchit la liste des ports accessibles
-async function refreshPorts(){
-  try{
-    const sel = document.getElementById('portSelect');
-    sel.innerHTML = '<option value="">-- Aucun --</option>';
-    const ports = await navigator.serial.getPorts();
-    ports.forEach((p, idx) => {
-      const opt = document.createElement('option');
-      let info = {};
-      try { info = p.getInfo ? p.getInfo() : {}; } catch(e){}
-      const labelParts = [];
-      if(info.usbVendorId) labelParts.push('VID:'+info.usbVendorId.toString(16));
-      if(info.usbProductId) labelParts.push('PID:'+info.usbProductId.toString(16));
-      opt.value = idx;
-      opt.textContent = labelParts.length ? `Port ${idx+1} (${labelParts.join(' ')})` : `Port ${idx+1}`;
-      opt._port = p;
-      sel.appendChild(opt);
-    });
-    log(`Liste des ports mise à jour (${ports.length} trouvés).`);
-  }catch(e){
-    log('Erreur refreshPorts: ' + e);
+  function log(msg) {
+    const logBox = document.getElementById('log');
+    logBox.innerHTML += msg + "\n";
+    logBox.scrollTop = logBox.scrollHeight;
   }
-}
 
-// Bouton : demande à l'utilisateur de choisir un port.
-// IMPORTANT : requestPort doit être appelé depuis un événement utilisateur (clic).
-document.getElementById('requestBtn').addEventListener('click', async () => {
-  try{
-    if(!('serial' in navigator)){
-      log('Impossible : Web Serial API non disponible.');
-      return;
-    }
-    // L'appel requestPort ouvre la boîte de dialogue de sélection
-    const chosenPort = await navigator.serial.requestPort();
-    log('Port sélectionné (dialogue ok).');
-    await refreshPorts();
-    // sélection automatique du dernier port ajouté
-    const sel = document.getElementById('portSelect');
-    sel.selectedIndex = sel.options.length - 1;
-  }catch(e){
-    // L'utilisateur peut annuler — on l'indique proprement
-    if(e.name === 'NotFoundError' || e.name === 'DOMException'){
-      log('Sélection annulée ou aucun périphérique choisi.');
-    } else {
-      log('Erreur requestPort: ' + e);
-    }
-  }
-});
-
-// Connecter au port sélectionné
-document.getElementById('connectBtn').addEventListener('click', async () => {
-  try{
-    const sel = document.getElementById('portSelect');
-    if(sel.selectedIndex <= 0){
-      log('Aucun port sélectionné.');
-      return;
-    }
-    const opt = sel.options[sel.selectedIndex];
-    const p = opt._port;
-    const baud = parseInt(document.getElementById('baudSelect').value, 10);
-    await p.open({ baudRate: baud });
-    port = p;
-    writer = port.writable.getWriter();
-    log(`Connecté au port (baud ${baud}).`);
-    readLoop(port);
-  }catch(e){
-    log('Erreur connexion: ' + e);
-  }
-});
-
-document.getElementById('closeBtn').addEventListener('click', async () => {
-  try{
-    if(writer){ await writer.close(); writer = null; }
-    if(port){ await port.close(); port = null; }
-    log('Port fermé.');
-  }catch(e){ log('Erreur fermeture: ' + e); }
-});
-
-async function sendCmd(cmd){
-  if(!writer){ log(`Non connecté — impossible d'envoyer: ${cmd}`); return; }
-  try{
-    await writer.write(new TextEncoder().encode(cmd + '\n'));
-    log('→ ' + cmd);
-  }catch(e){ log('Erreur envoi: ' + e); }
-}
-
-// Lecture simple (affiche toute donnée reçue)
-async function readLoop(p){
-  try{
-    while(p.readable){
-      const reader = p.readable.getReader();
-      try{
-        while(true){
+  async function readLoop() {
+    while (port && port.readable) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
           const { value, done } = await reader.read();
-          if(done) break;
-          if(value){
-            const text = new TextDecoder().decode(value);
-            log('← ' + text.trim());
+          if (done) break;
+          if (value) {
+            const text = new TextDecoder().decode(value).trim();
+            if (text) log("⬅️ " + text);
           }
         }
+      } catch (e) {
+        log("❌ Erreur lecture: " + e);
       } finally {
-        reader.releaseLock();
+        try { reader.releaseLock(); } catch(e) {}
       }
-      break; // on sort pour éviter double boucle (gestion simple)
     }
-  }catch(e){
-    log('Erreur lecture: ' + e);
   }
-}
 
-// Initialisation : tente de lister les ports déjà autorisés
-window.addEventListener('load', () => {
-  if('serial' in navigator){
-    refreshPorts();
-    log('API Web Serial détectée. Cliquez sur "Choisir un port..." pour sélectionner un périphérique.');
-  } else {
-    log('Web Serial API non détectée.');
+  async function sendCommand(cmd) {
+    if (!writer) {
+      log("⚠️ Connectez d'abord un port COM");
+      return;
+    }
+    log("➡️ " + cmd);
+    try {
+      await writer.write(new TextEncoder().encode(cmd + "\r\n"));
+    } catch (e) {
+      log("❌ Erreur écriture: " + e);
+    }
   }
-});
+
+  document.getElementById('connectBtn').addEventListener('click', async () => {
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      writer = port.writable.getWriter();
+      log("✅ Port ouvert (9600 baud)");
+      readLoop();
+    } catch (err) {
+      log("❌ Erreur ouverture port: " + err);
+    }
+  });
+
+  document.getElementById('versionBtn').addEventListener('click', () => {
+    sendCommand('?');
+  });
 </script>
+
+</body>
+</html>
