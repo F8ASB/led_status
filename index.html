@@ -9,10 +9,7 @@
       background: #f0f2f5;
       margin: 20px;
     }
-    h1 {
-      text-align: center;
-      margin-bottom: 25px;
-    }
+    h1 { text-align: center; margin-bottom: 25px; }
 
     .card {
       background: white;
@@ -21,10 +18,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
       margin-bottom: 20px;
     }
-    .card h2 {
-      margin-top: 0;
-      font-size: 20px;
-    }
+    .card h2 { margin-top: 0; font-size: 20px; }
 
     .button-grid {
       display: grid;
@@ -42,13 +36,9 @@
       transition: 0.2s;
       background: #e3e7ee;
     }
-    button:hover {
-      background: #cfd6e4;
-    }
+    button:hover { background: #cfd6e4; }
 
-    .cmd-btn {
-      font-weight: bold;
-    }
+    .cmd-btn { font-weight: bold; }
 
     #log {
       background: #ffffff;
@@ -58,6 +48,19 @@
       height: 200px;
       overflow-y: auto;
       white-space: pre-wrap;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .input-row input {
+      padding: 6px 10px;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      width: 100px;
     }
   </style>
 </head>
@@ -90,6 +93,24 @@
     <button class="cmd-btn" onclick="sendCommand('ERR_DISK')">🟡 Problème disque<br>ERR_DISK</button>
     <button class="cmd-btn" onclick="sendCommand('ERR_VMS')">🟡 Serveur crashé<br>ERR_VMS</button>
   </div>
+</div>
+
+<!-- SECTION CUSTOM -->
+<div class="card">
+  <h2>LED personnalisée (RGB / Hz / Pause)</h2>
+
+  <div class="input-row">
+    <input type="number" id="rVal" min="0" max="255" placeholder="Rouge (0-255)">
+    <input type="number" id="gVal" min="0" max="255" placeholder="Vert (0-255)">
+    <input type="number" id="bVal" min="0" max="255" placeholder="Bleu (0-255)">
+  </div>
+
+  <div class="input-row">
+    <input type="number" id="freqVal" min="0" step="0.1" placeholder="Fréquence (Hz)">
+    <input type="number" id="pauseVal" min="0" step="0.1" placeholder="Pause (s)">
+  </div>
+
+  <button style="margin-top:15px;" onclick="sendCustom()">🎨 Envoyer LED personnalisée</button>
 </div>
 
 <!-- Journal -->
@@ -142,7 +163,17 @@
     }
   }
 
-  // Connexion et ouverture du port directement depuis le bouton principal
+  function sendCustom() {
+    const r = document.getElementById('rVal').value || 0;
+    const g = document.getElementById('gVal').value || 0;
+    const b = document.getElementById('bVal').value || 0;
+    const freq = document.getElementById('freqVal').value || 0;
+    const pause = document.getElementById('pauseVal').value || 0;
+
+    const cmd = `custom;${r},${g},${b};${freq};${pause}`;
+    sendCommand(cmd);
+  }
+
   document.getElementById('connectBtn').addEventListener('click', async () => {
     try {
       port = await navigator.serial.requestPort();
@@ -155,7 +186,6 @@
     }
   });
 
-  // Bouton version
   document.getElementById('versionBtn').addEventListener('click', () => {
     sendCommand('?');
   });
